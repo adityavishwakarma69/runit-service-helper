@@ -1,0 +1,87 @@
+#!/bin/bash
+
+SVOPTIONS="link unlink status"		#All the options which require a service
+OTHOPTIONS="help list-all list-linked"  #All the options which do not require a service
+
+#Checking if all correct arguments are passed
+if [[ -z $1 ]] || [[ ! "${OTHOPTIONS}${SVOPTIONS}" =~ $1 ]] || [[ $SVOPTIONS =~ $1  ]] && [[ -z $2 ]]; then
+	echo "Wrong usage run 'rsvh help'"
+	exit 1
+else
+	#Checking if user is root
+	if [[ $(whoami) != "root" ]]; then
+		echo "You must be the superuser"
+		exit 1
+	fi
+
+	case $1 in
+		#Just echoing some usefull things
+		help)
+			echo "USAGE: rsvh [OPTION]
+Service Options:
+	link <service>				#Enables service
+	unlink <service>			#Disables service
+	status <service>			#Just 'sv status'
+Other Options:
+	help					#Show this help then exit
+	list-all				#Lists all services available (/etc/sv)
+	list-linked				#Lists all service enabled (/var/service)
+	"
+	;;
+		#Enable a service
+		link)
+			sv="/etc/sv/$2"
+			if ! [[ -d $sv ]]; then
+				echo No such service exists
+				exit 1
+			fi
+			ln -s /etc/sv/$2 /var/service
+			if [[ $? -ne 0 ]]; then
+				echo "failed to create symbolic link $sv -> /var/service/$2. Does it already exist?"
+				exit 1
+			fi
+			echo "created symbolic link $sv -> /var/service/$2"
+			;;
+
+		#Disable a service
+		unlink)
+			svlink="/var/service/$2"
+			if ! [[ -L $svlink ]]; then
+				echo No such service is linked
+				exit 1
+			fi
+			rm $svlink
+			if [[ $? -ne 0 ]]; then
+				echo "Failed to unlink the service does $svlink even exist?"
+				exit 1
+			fi
+			echo "removed symbolic link /etc/sv/$2 -> $svlink"
+			;;
+
+		#Runs sv status
+		status)
+			sv status $2 
+			;;
+
+		#List all the services
+		list-all)
+			ls /var/service | while read service
+					do
+						echo $service : $(sv status $service)
+					done			
+			ls /etc/sv | grep -v "$(ls /var/service)"
+			;;
+
+		#List services which are enabled
+		list-linked)
+			ls /var/service | while read service
+					do
+						echo $service : $(sv status $service)
+					done
+			;;
+	esac
+fi
+
+
+
+
